@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BTC Content Reworder</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; max-width: 800px; }
+    textarea { width: 100%; height: 100px; margin: 0.5rem 0; }
+    .section { margin-bottom: 1.5rem; }
+    .status { margin-top: 1rem; font-style: italic; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Britain Talks Climate – Content Reworder</h1>
+
+  <div class="section">
+    <label for="original">Original text:</label>
+    <textarea id="original" placeholder="Paste your content here..."></textarea>
+  </div>
+
+  <div class="section">
+    <h3>Select audience segments:</h3>
+    <label><input type="checkbox" value="Progressive Activists"> Progressive Activists</label><br>
+    <label><input type="checkbox" value="Civic Pragmatists"> Civic Pragmatists</label><br>
+    <label><input type="checkbox" value="Disengaged Battlers"> Disengaged Battlers</label><br>
+    <label><input type="checkbox" value="Disengaged Traditionalists"> Disengaged Traditionalists</label><br>
+    <label><input type="checkbox" value="Established Liberals"> Established Liberals</label><br>
+    <label><input type="checkbox" value="Loyal Nationals"> Loyal Nationals</label><br>
+    <label><input type="checkbox" value="Backbone Conservatives"> Backbone Conservatives</label><br>
+  </div>
+
+  <div class="section">
+    <h3>Select platforms:</h3>
+    <label><input type="checkbox" value="LinkedIn"> LinkedIn</label><br>
+    <label><input type="checkbox" value="Bluesky"> Bluesky</label><br>
+  </div>
+
+  <div class="section">
+    <label><input type="checkbox" id="images"> Generate image ideas</label>
+  </div>
+
+  <div class="section">
+    <label><input type="checkbox" id="editGeneric"> Edit generic prompt?</label><br>
+    <textarea id="genericPrompt" style="display:none;">
+You are a careful rewording assistant.
+- Do not add or invent facts.
+- Preserve meaning, dates, names.
+- Only reword tone/style.
+- If unsure, return input unchanged.
+    </textarea>
+  </div>
+
+  <button id="buildPrompt">Generate Prompt</button>
+  <button id="generatePosts">Generate Posts</button>
+
+  <div class="status" id="status">Loading model… please wait.</div>
+
+  <div class="section">
+    <h3>Final prompt (review before generating):</h3>
+    <pre id="finalPrompt" style="white-space: pre-wrap; background: #f4f4f4; padding:1rem;"></pre>
+  </div>
+
+  <div class="section">
+    <h3>Model output:</h3>
+    <div id="output" style="white-space: pre-wrap; background: #eef; padding:1rem;"></div>
+  </div>
+
+<script type="module">
+  import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@1.0.1/dist/transformers.min.js';
+
+  const segmentPrompts = {
+    "Progressive Activists": "Use motivating, urgent, collective language.",
+    "Civic Pragmatists": "Use cooperative, solution-focused, pragmatic language.",
+    "Disengaged Battlers": "Use plain, direct, everyday language with fairness themes.",
+    "Disengaged Traditionalists": "Use calm, practical, traditional, family-focused language.",
+    "Established Liberals": "Use thoughtful, optimistic, open-minded language.",
+    "Loyal Nationals": "Use patriotic, community-protecting, security-focused language.",
+    "Backbone Conservatives": "Use respectful, stability-focused, responsibility language."
+  };
+
+  const platformPrompts = {
+    "LinkedIn": "Keep professional tone. Max ~3000 characters.",
+    "Bluesky": "Max 300 characters. Can use hashtags sparingly."
+  };
+
+  document.getElementById('editGeneric').addEventListener('change', e => {
+    document.getElementById('genericPrompt').style.display = e.target.checked ? 'block' : 'none';
+  });
+
+  let generator;
+  async function loadModel() {
+    try {
+      document.getElementById('status').innerText = 'Loading model…';
+      generator = await pipeline('text-generation', 'Xenova/distilgpt2');
+      document.getElementById('status').innerText = 'Model loaded and ready.';
+    } catch (err) {
+      document.getElementById('status').innerText = 'Error loading model: ' + err;
+    }
+  }
+  loadModel();
+
+  function buildFinalPrompt() {
+    const text = document.getElementById('original').value;
+    const generic = document.getElementById('genericPrompt').value;
+    const segs = Array.from(document.querySelectorAll('input[type=checkbox][value]:checked')).map(cb => cb.value);
+    const img = document.getElementById('images').checked;
+
+    let finalPrompt = generic + "\n\nTask: Reword the following text for the selected audiences.";
+
+    segs.forEach(seg => {
+      if (segmentPrompts[seg]) finalPrompt += "\n- " + seg + ": " + segmentPrompts[seg];
+    });
+
+    const platforms = Array.from(document.querySelectorAll('input[value=LinkedIn]:checked, input[value=Bluesky]:checked')).map(cb => cb.value);
+    platforms.forEach(p => {
+      finalPrompt += "\nPlatform ("+p+"): " + platformPrompts[p];
+    });
+
+    if (img) finalPrompt += "\nAlso suggest 1-2 image ideas.";
+
+    finalPrompt += "\n\nOriginal text:\n" + text;
+
+    document.getElementById('finalPrompt').innerText = finalPrompt;
+    return finalPrompt;
+  }
+
+  document.getElementById('buildPrompt').addEventListener('click', () => {
+    buildFinalPrompt();
+    document.getElementById('output').innerText = "";
+  });
+
+  document.getElementById('generatePosts').addEventListener('click', async () => {
+    const finalPrompt = buildFinalPrompt();
+
+    if (!generator) {
+      document.getElementById('output').innerText = "Model not ready yet.";
+      return;
+    }
+
+    document.getElementById('output').innerText = "Generating...";
+    const out = await generator(finalPrompt, { max_new_tokens: 150 });
+    document.getElementById('output').innerText = out[0].generated_text;
+  });
+</script>
+
+</body>
+</html>
